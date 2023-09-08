@@ -1,0 +1,49 @@
+version: '3'
+services:
+  elasticmq:
+    container_name: elasticmq
+    image: softwaremill/elasticmq-native:1.2.0
+    ports:
+      - "9324:9324"
+      - "9325:9325"
+    volumes:
+    - type: bind
+      source: ./custom.conf
+      target: /opt/elasticmq.conf
+    networks:
+      - pipeline
+  lambda:
+    platform: linux/x86_64
+    container_name: lambda
+    build:
+      context: ./lambda
+    working_dir: /var/dev
+    environment:
+      - LAMBDA_TASK_ROOT=/var/dev
+    env_file:
+      - ./lambda/.env
+    volumes:
+      - ./lambda:/var/dev
+    networks:
+      - pipeline
+    entrypoint: /usr/local/bin/python -m awslambdaric lambda_handler.lambda_handler
+  pub_sub:
+    platform: linux/x86_64
+    container_name: pub_sub
+    build:
+      context: ./pub_sub
+    env_file:
+      - ./pub_sub/.env
+    depends_on:
+      - elasticmq
+      - lambda
+    working_dir: /src
+    volumes:
+      - ./pub_sub:/src
+    tty: true
+    networks:
+      - pipeline
+networks:
+  pipeline:
+    external: true
+    driver: bridge
